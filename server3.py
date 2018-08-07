@@ -37,14 +37,15 @@ def createFolder(directory):
 
 class Server:
 
-    def __init__(self, _server, bufferSize, threadId, clientId, pending,_queue):
+    def __init__(self, _server, bufferSize, threadId, clientId, pending):
         threading.Thread.__init__(self)
         self.threadId = threadId
         self.clientId = clientId
         self._server = _server
         self.bufferSize = bufferSize
         self.pending = pending
-        self.queue = _queue
+        createFolder(clientId)
+
 
     def run(self):
         # TODO : Refomat the server3.py ! Done
@@ -82,20 +83,12 @@ class Server:
             print('split done')
             try:
                 titleFile.seek(0)
-                title = titleFile.read().decode("utf-8")
+                title = titleFile.read().decode("utf-8").replace('\x00',"")
                 print(title)
-                if not self.queue.Full():
-                    self.queue.put(title,False)
-                else:
-                    # TODO : I don't know
-                    pass
                 original_filename = dataFile.name
                 print(original_filename)
-                os.link(original_filename, title[:8])
-                try:
-                    self.queue.task_done()
-                except ValueError:
-                    pass
+                path = os.getcwd()+"\\"+title
+                os.link(original_filename, title)
             except Exception as e:
                 print(e)
                 pass
@@ -108,7 +101,7 @@ class Server:
 
 if __name__ == "__main__":
     # The use of this class :
-    HOST = '192.168.8.100'
+    HOST = '192.168.61.109'
     PORT = 8888
     ADDR = (HOST, PORT)
     BUFSIZE = 4096
@@ -121,5 +114,5 @@ if __name__ == "__main__":
     server.listen(5)
     print("serving through : %i" % PORT)
     print('listening ...')
-    thread_server = Server(server, BUFSIZE, 1, 2, True)
+    thread_server = Server(server, BUFSIZE, 1, "source", True)
     thread_server.run()
