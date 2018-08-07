@@ -7,7 +7,7 @@ import speech_recognition as sr
 
 import sp
 
-HOST = '192.168.8.100'
+HOST = '192.168.61.109'
 PORT = 8888
 ADDR = (HOST, PORT)
 BUFSIZE = 4096
@@ -34,19 +34,18 @@ def createClientQueue():
 
 
 class Client:
-    def __init__(self, clientId, speech, _queue):
+    def __init__(self, clientId, speech, queue):
         # threading.Thread.__init__(self)
         self.clientId = clientId
         self.speech = speech
-        self.queue = _queue
+        self.queue = queue
 
     def run(self):
         task_queue = self.queue
-        thread_server = server3.Server(server, BUFSIZE,1, self.clientId, True, task_queue)
+        thread_server = server3.Server(server, BUFSIZE,1, self.clientId, True)
         thread_sp = sp.Recognizer(self.clientId, self.speech, 0, self.queue)
 
-        item = task_queue.get()
-        if task_queue.isEmpty():
+        if task_queue.empty():
             thread_server.run()
             Threads.append(thread_server)
         else:
@@ -59,5 +58,5 @@ class Client:
 if __name__ == "__main__":
     task_queue = queue.Queue()
     server, recognizer = Initialize()
-    client = Client("Sources", recognizer, task_queue)
+    client = Client("source", recognizer, task_queue)
     client.run()

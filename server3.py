@@ -5,6 +5,7 @@ import tempfile
 import socket
 import os
 import queue
+from concurrent.futures import ThreadPoolExecutor
 
 title = ""
 
@@ -36,33 +37,37 @@ def createFolder(directory):
 
 
 class Server:
+    queue = queue.Queue()
+    pending = False
 
-    def __init__(self, _server, bufferSize, threadId, clientId, pending):
+    def __init__(self, _server, bufferSize, threadId, clientId, pending, queue):
         threading.Thread.__init__(self)
         self.threadId = threadId
         self.clientId = clientId
         self._server = _server
         self.bufferSize = bufferSize
         self.pending = pending
+        self.queue = queue
         createFolder(clientId)
-
 
     def run(self):
         # TODO : Refomat the server3.py ! Done
         # TODO : Create a thread Class  ! Done 2:25 PM
         print("Server is listening for incoming Data ")
-        while self.pending:
+        while True:
             titleData = 0
             conn, address = self._server.accept()
             print('client connected ... ' + str(address[0]) + ":" + str(address[1]))
             # We create a temporary files
             # The title we don't need it so we delete it !
-            titleFile = tempfile.NamedTemporaryFile('w+b', dir='', delete=True)
-            dataFile = tempfile.NamedTemporaryFile('w+b', dir='', delete=True)
-
-            while True:
+            createFolder(self.clientId)
+            titleFile = tempfile.NamedTemporaryFile('w+b', dir=self.clientId, delete=True)
+            dataFile = tempfile.NamedTemporaryFile('w+b', dir=self.clientId, delete=True)
+            print(str(self.threadId))
+            while self.pending:
                 data = conn.recv(self.bufferSize)
                 if not data:
+                    self.pending = False
                     break
                 if titleData >= 4096:
                     dataFile.write(data)
@@ -83,12 +88,13 @@ class Server:
             print('split done')
             try:
                 titleFile.seek(0)
-                title = titleFile.read().decode("utf-8").replace('\x00',"")
+                title = titleFile.read().decode("utf-8").replace('\x00', "")
                 print(title)
                 original_filename = dataFile.name
                 print(original_filename)
-                path = os.getcwd()+"\\"+title
-                os.link(original_filename, title)
+                path = os.getcwd() + "\\" + self.clientId + "\\" + title
+                # path = "%s'\\'%s'\\'%s" % os.getcwd() % self.clientId % title
+                os.link(original_filename, path)
             except Exception as e:
                 print(e)
                 pass
@@ -100,12 +106,14 @@ class Server:
 
 
 if __name__ == "__main__":
+    # TODO : I HAVE TO change the principal fonctionality
     # The use of this class :
     HOST = '192.168.61.109'
     PORT = 8888
     ADDR = (HOST, PORT)
     BUFSIZE = 4096
     OFFSET = BUFSIZE * 8 + BUFSIZE
+    THREAD_NUM = 2
     queue = queue.Queue()
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -114,5 +122,13 @@ if __name__ == "__main__":
     server.listen(5)
     print("serving through : %i" % PORT)
     print('listening ...')
-    thread_server = Server(server, BUFSIZE, 1, "source", True)
-    thread_server.run()
+
+    thread_server = Server(server, BUFSIZE, 1, "source", True, None)
+    thread_server1 = Server(server, BUFSIZE, 2, "source", True, None)
+    executor = ThreadPoolExecutor(max_workers=THREAD_NUM)
+    a = executor.submit(thread_server.run())
+    b = executor.submit(thread_server1.run())
+
+    # for i in range(THREAD_NUM):
+    #    thread_server = Server(server, BUFSIZE, i, "source", True, None)
+    #    thread_server.run()
