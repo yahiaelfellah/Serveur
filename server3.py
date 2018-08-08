@@ -4,10 +4,12 @@ import threading
 import tempfile
 import socket
 import os
-import queue
-from concurrent.futures import ThreadPoolExecutor
+import queue, logging
+import time
 
 title = ""
+logging.basicConfig(level=logging.DEBUG,
+                    format='(%(threadName)-9s) %(message)s', )
 
 
 # Obsolete
@@ -40,23 +42,23 @@ class Server:
     queue = queue.Queue()
     pending = False
 
-    def __init__(self, _server, bufferSize, threadId, clientId, pending, queue):
+    def __init__(self, _server, bufferSize, threadId, clientId, pending):
         threading.Thread.__init__(self)
         self.threadId = threadId
         self.clientId = clientId
         self._server = _server
         self.bufferSize = bufferSize
         self.pending = pending
-        self.queue = queue
         createFolder(clientId)
 
-    def run(self):
+    def run(self, queue):
         # TODO : Refomat the server3.py ! Done
         # TODO : Create a thread Class  ! Done 2:25 PM
         print("Server is listening for incoming Data ")
-        while True:
-            titleData = 0
+        # while True:
+        if not queue.full():
             conn, address = self._server.accept()
+            titleData = 0
             print('client connected ... ' + str(address[0]) + ":" + str(address[1]))
             # We create a temporary files
             # The title we don't need it so we delete it !
@@ -95,18 +97,26 @@ class Server:
                 path = os.getcwd() + "\\" + self.clientId + "\\" + title
                 # path = "%s'\\'%s'\\'%s" % os.getcwd() % self.clientId % title
                 os.link(original_filename, path)
+
             except Exception as e:
                 print(e)
                 pass
             titleFile.close()
             dataFile.close()
+            queue.put(path)
+            logging.debug('Putting ' + str(path)
+                          + ' : ' + str(queue.qsize()) + ' items in queue')
             print('finished writing file')
             conn.close()
             print('client disconnected')
+        return queue
+
+    def sleep(self, n):
+        time.sleep(n)
 
 
 if __name__ == "__main__":
-    # TODO : I HAVE TO change the principal fonctionality
+    # TODO : I HAVE TO change the principal functionality
     # The use of this class :
     HOST = '192.168.61.109'
     PORT = 8888
@@ -125,9 +135,9 @@ if __name__ == "__main__":
 
     thread_server = Server(server, BUFSIZE, 1, "source", True, None)
     thread_server1 = Server(server, BUFSIZE, 2, "source", True, None)
-    executor = ThreadPoolExecutor(max_workers=THREAD_NUM)
-    a = executor.submit(thread_server.run())
-    b = executor.submit(thread_server1.run())
+    # executor = ThreadPoolExecutor(max_workers=THREAD_NUM)
+    # a = executor.submit(thread_server.run())
+    # b = executor.submit(thread_server1.run())
 
     # for i in range(THREAD_NUM):
     #    thread_server = Server(server, BUFSIZE, i, "source", True, None)

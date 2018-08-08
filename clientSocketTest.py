@@ -6,7 +6,7 @@ except socket.error as e:
     print(e)
     sys.exit()
 print("Socket Created.........")
-host = "192.168.8.100"
+host = "192.168.61.109"
 port = 8888
 try:
     remote_ip = socket.gethostbyname(host)
@@ -18,7 +18,7 @@ print("We are connected ... ")
 # Data to send
 message = b''
 while len(message) <= 4096*8 :
-    message = message + b'The tempfile module also provides a NamedTemporaryFile '
+    message = message + b'recording-0.wav'
 print(len(message))
 try:
     s.sendall(message)

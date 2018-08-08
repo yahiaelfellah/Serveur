@@ -1,10 +1,16 @@
+import logging
 import os
 import queue
 import threading
+import time
+
 import speech_recognition as sr
+import socket
+
 
 # TODO : Reformat the sp script : Done 4:00 AM
-def createFile(path):
+def createFile(clientId):
+    path = clientId + "/Transcibe.txt"
     f = open(path, "wt")
     f.close()
 
@@ -19,21 +25,23 @@ def writeToFile(text, clientId, mode):
 
 
 class Recognizer:
-    def __init__(self, clientId, speech_recognizer, lastIndex,queue):
+    def __init__(self, clientId=None, speech_recognizer=None, lastIndex=0):
         threading.Thread.__init__(self)
         self.clientId = clientId
         self.speech_recognizer = speech_recognizer
         self.lastIndex = lastIndex
-        self.queue = queue
 
-    def run(self):
+    def run(self, queue):
         fileIndex = self.lastIndex
-        while True:
+        createFile(clientId=self.clientId)
+        # while True:
+        if not queue.empty():
             r = self.speech_recognizer
-            audio = 'recording-' + str(fileIndex) + '.wav'
-            audio_client = self.queue.get()
-            self.queue.task_done()
-            path = self.clientId + "/" + audio_client
+            audio = queue.get()
+            logging.debug('Getting ' + str(audio)
+                          + ' : ' + str(queue.qsize()) + ' items in queue')
+            # audio = 'recording-%i.wav' % fileIndex
+            path = self.clientId + "/" + audio
             if os.path.isfile(path):
                 print('we are reading ' + path)
                 try:
@@ -59,14 +67,18 @@ class Recognizer:
                                 , "a+")
                 except Exception as e:
                     print(e)
-            else :
+            else:
                 print("no more files to transcribe for %s ......... " % self.clientId)
-                break
+
+        return queue
+
+    def sleep(self, n):
+        time.sleep(n)
 
 
 if __name__ == "__main__":
     r = sr.Recognizer()
     r.energy_threshold = 4000
     fileIndex = 0
-    sp_thread = Recognizer("Sources", r, 0)
+    sp_thread = Recognizer("source", r, 0)
     sp_thread.run()
