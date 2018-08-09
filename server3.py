@@ -55,14 +55,13 @@ class Server:
     pending = False
 
     def __init__(self, _server=None, bufferSize=None, threadId=None,
-                 clientId=None, pending=None,condition=None,queue=None):
+                 clientId=None, pending=None, queue=None):
         threading.Thread.__init__(self)
         self.threadId = threadId
         self.clientId = clientId
         self._server = _server
         self.bufferSize = bufferSize
         self.pending = pending
-        self.condition = condition
         self.queue = queue
         createFolder(clientId)
 
@@ -109,7 +108,8 @@ class Server:
                     print(title)
                     original_filename = dataFile.name
                     print(original_filename)
-                    path = os.getcwd() + "\\" + self.clientId + "\\" + title[:15]
+                    # path = os.getcwd() + "\\" + self.clientId + "\\" + title
+                    path = self.clientId + "\\" + title[:15]
                     # path = "%s'\\'%s'\\'%s" % os.getcwd() % self.clientId % title
                     os.link(original_filename, path)
 
@@ -117,13 +117,8 @@ class Server:
                     print(e)
                     pass
                 dataFile.close()
-                self.condition.acquire()
-                print ('condition acquired by %s' % self.clientId)
-                granted_accss(path)
                 titleFile.close()
                 self.queue.put(path)
-                self.condition.notify()
-                self.condition.release()
                 logging.debug('Putting ' + str(path)
                               + ' : ' + str(self.queue.qsize()) + ' items in queue')
                 print('finished writing file')

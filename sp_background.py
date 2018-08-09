@@ -28,7 +28,7 @@ class Recognizer(object):
     """
 
     def __init__(self, interval, clientId, speech_recognizer,
-                 lastIndex, threadId, condition, queue):
+                 lastIndex, threadId, queue):
         """ Constructor
         :type interval: int
         :param interval: Check interval, in seconds
@@ -38,7 +38,6 @@ class Recognizer(object):
         self.threadId = threadId
         self.speech_recognizer = speech_recognizer
         self.lastIndex = lastIndex
-        self.condition = condition
         self.queue = queue
         thread = threading.Thread(target=self.run, args=())
         thread.daemon = True  # Daemonize thread
@@ -46,26 +45,25 @@ class Recognizer(object):
 
     def run(self):
         """ Method that runs forever """
-        while True :
+        while True:
+            time.sleep(self.interval)
             print('sp running in the background')
             fileIndex = self.lastIndex
             # createFile(clientId=self.clientId)
             if not self.queue.empty():
-                self.condition.acquire()
                 r = self.speech_recognizer
-                audio = self.queue.get()
-                logging.debug('Getting ' + str(audio)
+                path = self.queue.get()
+                logging.debug('Getting ' + str(path)
                               + ' : ' + str(self.queue.qsize()) + ' items in queue')
                 # audio = 'recording-%i.wav' % fileIndex
-                path = self.clientId + "/" + audio
-                if not os.access(path, os.R_OK):
-                    self.condition.wait(0.1)
+                # path = self.clientId + "\\" + audio
                 if os.path.isfile(path):
                     print('we are reading ' + path)
                     try:
                         with sr.AudioFile(path) as source:
                             audio = r.record(source)
                     except IOError as e:
+                        print("handling error")
                         print(e)
                         pass
                     try:
@@ -74,9 +72,8 @@ class Recognizer(object):
                         print('Done!')
                         print(text)
                         fileIndex += 1
-                        if text == "audio stop":
-                            fileIndex = 0
-
+                        # if text == "audio stop":
+                        #     fileIndex = 0
                     except sr.UnknownValueError:
                         writeToFile("Google Speech Recognition could not understand audio" + "\n", self.clientId
                                     , "a+")
@@ -85,10 +82,8 @@ class Recognizer(object):
                                     , "a+")
                     except Exception as e:
                         print(e)
-                else:
-                    print("no more files to transcribe for %s ......... " % self.clientId)
-                    self.condition.release()
-                time.sleep(self.interval)
+                    else:
+                        print("no more files to transcribe for %s ......... " % self.clientId)
             else :
                 print("queue is empty we are waiting ! ")
             return self.queue

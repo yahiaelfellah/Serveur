@@ -57,9 +57,9 @@ class Manager:
     def run(self):
 
         condition = threading.Condition()
-        self.server_worker = [server3.Server(server, BUFSIZE, i, self.clientId, True, condition, self.queue) for i in
+        self.server_worker = [server3.Server(server, BUFSIZE, i, self.clientId, True, self.queue) for i in
                               range(self.NUMBER_THREAD)]
-        sp_worker = sp_background.Recognizer(1, self.clientId, self.speech, 0, 1, condition, self.queue)
+        sp_worker = sp_background.Recognizer(1, self.clientId, self.speech, 0, 1, self.queue)
 
         print("running %i thread for each " % self.NUMBER_THREAD)
         for t in self.server_worker:
@@ -68,10 +68,10 @@ class Manager:
             self.THREADS.append(t)
             path = self.queue.get()
             self.queue.put(path)
-            if os.access(path, os.R_OK):
-                self.queue = sp_worker.run()
-            else:
+            if not os.access(path, os.R_OK):
                 continue
+            else:
+                sp_worker.run()
 
     def get_thread_tab(self):
         return self.THREADS
