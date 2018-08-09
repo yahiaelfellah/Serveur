@@ -25,23 +25,28 @@ def writeToFile(text, clientId, mode):
 
 
 class Recognizer:
-    def __init__(self, clientId=None, speech_recognizer=None, lastIndex=0):
+    def __init__(self, clientId=None, speech_recognizer=None, lastIndex=0, threadId=0, condition=None,queue=None):
         threading.Thread.__init__(self)
         self.clientId = clientId
+        self.threadId = threadId
         self.speech_recognizer = speech_recognizer
         self.lastIndex = lastIndex
+        self.condition = condition
+        self.queue = queue
 
-    def run(self, queue):
+    def run(self):
         fileIndex = self.lastIndex
         createFile(clientId=self.clientId)
-        # while True:
-        if not queue.empty():
+        if not self.queue.empty():
+            self.condition.acquire()
             r = self.speech_recognizer
-            audio = queue.get()
+            audio = self.queue.get()
             logging.debug('Getting ' + str(audio)
-                          + ' : ' + str(queue.qsize()) + ' items in queue')
+                          + ' : ' + str(self.queue.qsize()) + ' items in queue')
             # audio = 'recording-%i.wav' % fileIndex
             path = self.clientId + "/" + audio
+            if not os.access(path, os.R_OK):
+                self.condition.wait(0.1)
             if os.path.isfile(path):
                 print('we are reading ' + path)
                 try:
@@ -69,8 +74,9 @@ class Recognizer:
                     print(e)
             else:
                 print("no more files to transcribe for %s ......... " % self.clientId)
+                self.condition.release()
 
-        return queue
+        return self.queue
 
     def sleep(self, n):
         time.sleep(n)
@@ -80,5 +86,4 @@ if __name__ == "__main__":
     r = sr.Recognizer()
     r.energy_threshold = 4000
     fileIndex = 0
-    sp_thread = Recognizer("source", r, 0)
-    sp_thread.run()
+    sp_worker = Recognizer("Sources",r, 0, 1)

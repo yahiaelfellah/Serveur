@@ -1,11 +1,15 @@
+import os
 import socket
-import sys
+import threading
+
 import server3
 import queue
 import speech_recognition as sr
-
+from multiprocessing import cpu_count
 import sp
+import sp_background
 
+# HOST = "192.168.61.109"
 PORT = 8888
 BUFSIZE = 4096
 Threads = []
@@ -14,16 +18,13 @@ Threads = []
 def Initialize():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        HOST = socket.gethostbyname(socket.getfqdn())
+        HOST = socket.gethostbyname(socket.gethostname())
+        print(HOST)
     except socket.gaierror as e:
         print(e)
-        HOST = "192.168.61.109"
-        sys.exit
-
-    print(HOST)
     ADDR = (HOST, PORT)
     server.bind(ADDR)
-    server.listen(5)
+    server.listen(10)
     print('listening ...')
     r = sr.Recognizer()
     r.energy_threshold = 4000
@@ -42,32 +43,38 @@ def getIndex():
 
 class Manager:
 
-    def __init__(self, clientId=None, speech=None):
-        # threading.Thread.__init__(self)
+    def __init__(self, clientId, speech, queue):
         self.clientId = clientId
         self.speech = speech
         self.THREADS = []
-        self.thread_server = server3.Server(server, BUFSIZE, 1, self.clientId, True)
-        self.thread_sp = sp.Recognizer(self.clientId, self.speech, 0)
+        self.queue = queue
+        self.server_worker = []
+        self.sp_worker = []
+        self.thread_server = server3
+        self.thread_sp = sp.Recognizer(self.clientId, self.speech, 0, 1)
+        self.NUMBER_THREAD = cpu_count()
 
-    def run(self, _queue):
-        while True:
-            _queue = self.thread_server.run(_queue)
-            self.THREADS.append(self.thread_server)
-            self.thread_server.sleep(0.05)
-            _queue = self.thread_sp.run(_queue)
-            self.THREADS.append(self.thread_sp)
-            self.thread_sp.sleep(0.05)
+    def run(self):
 
-        # if len(self.tab) == 0:
-        #     self.tab=thread_server.run(self.tab)
-        #
-        #     print(str(self.tab))
-        # else:
-        #     thread_server.run(self.tab)
-        #     print("thred_server")
-        #     thread_sp.run(self.tab[0])
-        #     print("thred_sp")
+        condition = threading.Condition()
+        self.server_worker = [server3.Server(server, BUFSIZE, i, self.clientId, True, condition, self.queue) for i in
+                              range(self.NUMBER_THREAD)]
+        sp_worker = sp_background.Recognizer(1, self.clientId, self.speech, 0, 1, condition, self.queue)
+
+        print("running %i thread for each " % self.NUMBER_THREAD)
+        for t in self.server_worker:
+            self.queue = t.run()
+            self.queue.task_done()
+            self.THREADS.append(t)
+            path = self.queue.get()
+            self.queue.put(path)
+            if os.access(path, os.R_OK):
+                self.queue = sp_worker.run()
+            else:
+                continue
+
+    def get_thread_tab(self):
+        return self.THREADS
 
     def stop(self, _queue):
         _queue.put(None)
@@ -77,7 +84,8 @@ class Manager:
 
 
 if __name__ == "__main__":
-    task_queue = queue.Queue()
     server, recognizer = Initialize()
-    client = Manager("source", recognizer)
-    client.run(task_queue)
+    task_queue = queue.Queue()
+    client = Manager("source", recognizer, task_queue)
+    while True:
+        client.run()

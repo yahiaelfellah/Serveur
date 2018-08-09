@@ -1,10 +1,9 @@
+import logging
 import os
-import shutil
-import threading
-import tempfile
+import queue
 import socket
-import os
-import queue, logging
+import tempfile
+import threading
 import time
 
 title = ""
@@ -38,81 +37,102 @@ def createFolder(directory):
         os.mkdir(directory, mode=0o777)
 
 
+def granted_accss(f):
+    if os.path.exists(f):
+        try:
+            os.rename(f, f)
+            print('Access on file "' + f + '" is available!')
+        except OSError as e:
+            print('Access-error on file "' + f + '"! \n' + str(e))
+
+
+def sleep(n):
+    time.sleep(n)
+
+
 class Server:
     queue = queue.Queue()
     pending = False
 
-    def __init__(self, _server, bufferSize, threadId, clientId, pending):
+    def __init__(self, _server=None, bufferSize=None, threadId=None,
+                 clientId=None, pending=None,condition=None,queue=None):
         threading.Thread.__init__(self)
         self.threadId = threadId
         self.clientId = clientId
         self._server = _server
         self.bufferSize = bufferSize
         self.pending = pending
+        self.condition = condition
+        self.queue = queue
         createFolder(clientId)
 
-    def run(self, queue):
+    def run(self):
         # TODO : Refomat the server3.py ! Done
         # TODO : Create a thread Class  ! Done 2:25 PM
         print("Server is listening for incoming Data ")
-        # while True:
-        if not queue.full():
-            conn, address = self._server.accept()
-            titleData = 0
-            print('client connected ... ' + str(address[0]) + ":" + str(address[1]))
-            # We create a temporary files
-            # The title we don't need it so we delete it !
-            createFolder(self.clientId)
-            titleFile = tempfile.NamedTemporaryFile('w+b', dir=self.clientId, delete=True)
-            dataFile = tempfile.NamedTemporaryFile('w+b', dir=self.clientId, delete=True)
-            print(str(self.threadId))
-            while self.pending:
-                data = conn.recv(self.bufferSize)
-                if not data:
-                    self.pending = False
-                    break
-                if titleData >= 4096:
-                    dataFile.write(data)
-                    print('writing file .... temp_data ... ', len(data))
-                if titleData < 4096:
-                    if titleData + len(data) > 4096:
-                        print('EXCEPTION')
-                        titleFile.write(data[:4096 - titleData])
-                        print('writing file .... temp_title ... ', 4096 - titleData)
-                        dataFile.write(data[4096 - titleData:])
-                        print('writing file .... temp_data ... ', len(data[4096 - titleData:]))
-                        titleData = titleData + len(data)
-                    else:
-                        titleFile.write(data)
-                        print('writing file .... temp_title ... ', len(data))
-                        titleData = titleData + len(data)
+        while True:
+            if not self.queue.full():
+                conn, address = self._server.accept()
+                titleData = 0
+                print('client connected ... ' + str(address[0]) + ":" + str(address[1]))
+                # We create a temporary files
+                # The title we don't need it so we delete it !
+                createFolder(self.clientId)
+                titleFile = tempfile.NamedTemporaryFile('w+b', dir=self.clientId, delete=True)
+                dataFile = tempfile.NamedTemporaryFile('w+b', dir=self.clientId, delete=True)
+                print(str(self.threadId))
+                while self.pending:
+                    data = conn.recv(self.bufferSize)
+                    if not data:
+                        self.pending = False
+                        break
+                    if titleData >= 4096:
+                        dataFile.write(data)
+                        print('writing file .... temp_data ... ', len(data))
+                    if titleData < 4096:
+                        if titleData + len(data) > 4096:
+                            print('EXCEPTION')
+                            titleFile.write(data[:4096 - titleData])
+                            print('writing file .... temp_title ... ', 4096 - titleData)
+                            dataFile.write(data[4096 - titleData:])
+                            print('writing file .... temp_data ... ', len(data[4096 - titleData:]))
+                            titleData = titleData + len(data)
+                        else:
+                            titleFile.write(data)
+                            print('writing file .... temp_title ... ', len(data))
+                            titleData = titleData + len(data)
 
-            print('split done')
-            try:
-                titleFile.seek(0)
-                title = titleFile.read().decode("utf-8").replace('\x00', "")
-                print(title)
-                original_filename = dataFile.name
-                print(original_filename)
-                path = os.getcwd() + "\\" + self.clientId + "\\" + title
-                # path = "%s'\\'%s'\\'%s" % os.getcwd() % self.clientId % title
-                os.link(original_filename, path)
+                print('split done')
+                try:
+                    titleFile.seek(0)
+                    title = titleFile.read().decode("utf-8").replace('\x00', "")
+                    print(title)
+                    original_filename = dataFile.name
+                    print(original_filename)
+                    path = os.getcwd() + "\\" + self.clientId + "\\" + title[:15]
+                    # path = "%s'\\'%s'\\'%s" % os.getcwd() % self.clientId % title
+                    os.link(original_filename, path)
 
-            except Exception as e:
-                print(e)
-                pass
-            titleFile.close()
-            dataFile.close()
-            queue.put(path)
-            logging.debug('Putting ' + str(path)
-                          + ' : ' + str(queue.qsize()) + ' items in queue')
-            print('finished writing file')
-            conn.close()
-            print('client disconnected')
-        return queue
+                except Exception as e:
+                    print(e)
+                    pass
+                dataFile.close()
+                self.condition.acquire()
+                print ('condition acquired by %s' % self.clientId)
+                granted_accss(path)
+                titleFile.close()
+                self.queue.put(path)
+                self.condition.notify()
+                self.condition.release()
+                logging.debug('Putting ' + str(path)
+                              + ' : ' + str(self.queue.qsize()) + ' items in queue')
+                print('finished writing file')
+                conn.close()
+                print('client disconnected')
+            return self.queue
 
-    def sleep(self, n):
-        time.sleep(n)
+    def get_name(self):
+        return self.get_name()
 
 
 if __name__ == "__main__":
