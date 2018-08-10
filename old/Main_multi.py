@@ -1,8 +1,7 @@
 import queue
 import sys
 
-import server
-import sp
+from old import server, sp
 import socket
 import select
 import speech_recognition as sr

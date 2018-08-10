@@ -6,8 +6,9 @@ import server3
 import queue
 import speech_recognition as sr
 from multiprocessing import cpu_count
-import sp
+from old import sp
 import sp_background
+import commands
 
 # HOST = "192.168.61.109"
 PORT = 8888
@@ -37,17 +38,14 @@ def getIndex():
     pass
 
 
-# def createClientQueue():
-#     task_queue = queue.Queue()
-#
-
 class Manager:
 
-    def __init__(self, clientId, speech, queue):
+    def __init__(self, clientId, speech, queue_task,queue_command):
         self.clientId = clientId
         self.speech = speech
         self.THREADS = []
-        self.queue = queue
+        self.queue_task = queue_task
+        self.queue_command = queue_command
         self.server_worker = []
         self.sp_worker = []
         self.thread_server = server3
@@ -60,14 +58,14 @@ class Manager:
         self.server_worker = [server3.Server(server, BUFSIZE, i, self.clientId, True, self.queue) for i in
                               range(self.NUMBER_THREAD)]
         sp_worker = sp_background.Recognizer(1, self.clientId, self.speech, 0, 1, self.queue)
-
+        command_worker = commands.CommandManager.run_match()
         print("running %i thread for each " % self.NUMBER_THREAD)
         for t in self.server_worker:
-            self.queue = t.run()
-            self.queue.task_done()
+            self.queue_task = t.run()
+            self.queue_task.task_done()
             self.THREADS.append(t)
-            path = self.queue.get()
-            self.queue.put(path)
+            path = self.queue_task.get()
+            self.queue_task.put(path)
             if not os.access(path, os.R_OK):
                 continue
             else:
@@ -86,6 +84,7 @@ class Manager:
 if __name__ == "__main__":
     server, recognizer = Initialize()
     task_queue = queue.Queue()
-    client = Manager("source", recognizer, task_queue)
+    command_queue = queue.Queue()
+    client = Manager("source", recognizer, task_queue,command_queue)
     while True:
         client.run()

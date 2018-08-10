@@ -132,7 +132,6 @@ class Server:
 
 if __name__ == "__main__":
     # TODO : I HAVE TO change the principal functionality
-    # The use of this class :
     HOST = '192.168.61.109'
     PORT = 8888
     ADDR = (HOST, PORT)
