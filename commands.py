@@ -1,5 +1,7 @@
+import logging
 import threading
 import re
+import queue
 
 CONST_REPLACE_COMMAND = ""
 CONST_DELETE_COMMAND = ""
@@ -121,14 +123,14 @@ def pattern_finder(line):
 
 class CommandManager:
 
-    def __init__(self, path, line,queue):
-        self.path = path
-        self.line = line  # we call in the main read_last_line()
+    def __init__(self, queue_command):
+        self.line = ""
         self.list = line_to_list(self.line)
-        self.queue = queue
-        thread = threading.Thread(target=self.run_match(), args=())
+        self.queue_command = queue_command
+        thread = threading.Thread(target=self.run_match, args=())
         thread.daemon = True
         thread.start()
+        print('commandManger is running .... ')
 
     def run_match(self):
         # TODO : implement the insert checker :DONE
@@ -136,8 +138,11 @@ class CommandManager:
         # TODO : implement the replace checker : DONE = 7/18 ; 11:03 AM
         # TODO : implement it as a service : infinite loop
         while True:
-            if not self.queue.empty():
-                self.path = self.queue.get()
+            if not self.queue_command.empty():
+                path = self.queue_command.get()
+                logging.debug('Getting ' + str(path)
+                              + ' : ' + str(self.queue_command.qsize()) + ' items in self.queue_command')
+                self.line = read_last_line(path)
                 insert_request, delete_request, replace_request, matchObj = pattern_finder(self.line)
                 try:
                     if matchObj:
@@ -148,28 +153,28 @@ class CommandManager:
                             # TODO  : We have to call replace function : DONE !
                             if replace_request:
                                 replaceWord(self.list.index(string), -1, matchObj.group(5).split(' ')[1], self.list,
-                                            self.path)
-                                return
+                                            path)
+                                return self.queue_command
                             # TODO : Define the condition to call delete and insert functions
                             if delete_request:
-                                delete(self.list.index(string), -1, self.list, self.path)
+                                delete(self.list.index(string), -1, self.list, path)
                             if insert_request:
-                                insert(matchObj.group(2), (self.list.index(string)), self.list, self.path)
-                                return
+                                insert(matchObj.group(2), (self.list.index(string)), self.list, path)
+                                return self.queue_command
                         if "after" in matchObj.group(3).lower():
                             string = matchObj.group(4)
                             print("...........inserting after : " + string)
 
                             # TODO  : We have to call replace function : DONE !
                             if replace_request:
-                                replaceWord(self.list.index(string), -2, matchObj.group(5).split(' ')[1], self.path)
-                                return
+                                replaceWord(self.list.index(string), -2, matchObj.group(5).split(' ')[1], path)
+                                return self.queue_command
                             if delete_request:
                                 # TODO : there's a specification in after to clarify
-                                delete((self.list.index(string) + 1), -2, self.list, self.path)
+                                delete((self.list.index(string) + 1), -2, self.list, path)
                             if insert_request:
-                                insert(matchObj.group(2), (self.list.index(string) + 1), self.list, self.path)
-                                return
+                                insert(matchObj.group(2), (self.list.index(string) + 1), self.list, path)
+                                return self.queue_command
                         # Insert a simple word in the the text
                         # TODO : Insert a hole phrase in the position we want
                         if insert_request and "between" in matchObj.group(3):
@@ -178,21 +183,21 @@ class CommandManager:
                             if match_between:
                                 word1 = match_between.group(1).lower()
                                 word2 = match_between.group(2).lower()
-                                insert(matchObj.group(2), (self.list.index(word1) + 1), self.list, self.path)
-                                return
+                                insert(matchObj.group(2), (self.list.index(word1) + 1), self.list, path)
+                                return self.queue_command
 
                             else:
                                 print("request to specification")
                         # This is a alternative for a sentence like "delete word
                         if delete_request and (matchObj.group(2) or matchObj.group(3)):
                             if "all" in matchObj.group(3).lower():
-                                delete(matchObj.group(2), -3, self.list, self.path)
-                                return
+                                delete(matchObj.group(2), -3, self.list, path)
+                                return self.queue_command
                             # delete last word in the phrase
                             if "last" in matchObj.group(2):
                                 word = matchObj.group(3)
-                                delete((len(self.list) - 1 - self.list[::-1].index(word)), -4, self.list, self.path)
-                                return
+                                delete((len(self.list) - 1 - self.list[::-1].index(word)), -4, self.list, path)
+                                return self.queue_command
                             else:
                                 print("--- request more specification ----- ")
                                 return None, None
@@ -201,12 +206,13 @@ class CommandManager:
                             string = matchObj.group(3)
                             string1 = matchObj.group(5)
                             if "last" in matchObj.group(2):
-                                replaceWord((len(self.list) - 1 - self.list[::-1].index(string)), -3, string1, self.list,
-                                            self.path)
-                                return
+                                replaceWord((len(self.list) - 1 - self.list[::-1].index(string)), -3, string1,
+                                            self.list,
+                                            path)
+                                return self.queue_command
                             if "all" in matchObj.group(2):
-                                replaceWord(string, -4, string1, self.list, self.path)
-                                return
+                                replaceWord(string, -4, string1, self.list, path)
+                                return self.queue_command
                             else:
                                 print("--- request more specification ----- ")
                                 return None, None
@@ -217,6 +223,6 @@ class CommandManager:
                         print("no Match !! ")
                 except Exception as e:
                     print("there's an error ")
-            else :
+            else:
                 print("queue is empty we are waiting ...")
-
+            return self.queue_command

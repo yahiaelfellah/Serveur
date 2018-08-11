@@ -3,6 +3,7 @@ import os
 import threading
 import time
 import speech_recognition as sr
+import queue
 
 
 def createFile(clientId):
@@ -28,7 +29,7 @@ class Recognizer(object):
     """
 
     def __init__(self, interval, clientId, speech_recognizer,
-                 lastIndex, threadId, queue):
+                 lastIndex, threadId, queue_task, queue_command):
         """ Constructor
         :type interval: int
         :param interval: Check interval, in seconds
@@ -38,7 +39,8 @@ class Recognizer(object):
         self.threadId = threadId
         self.speech_recognizer = speech_recognizer
         self.lastIndex = lastIndex
-        self.queue = queue
+        self.queue_task = queue_task
+        self.queue_command = queue_command
         thread = threading.Thread(target=self.run, args=())
         thread.daemon = True  # Daemonize thread
         thread.start()  # Start the execution
@@ -50,17 +52,15 @@ class Recognizer(object):
             print('sp running in the background')
             fileIndex = self.lastIndex
             # createFile(clientId=self.clientId)
-            if not self.queue.empty():
+            if not self.queue_task.empty():
                 r = self.speech_recognizer
-                path = self.queue.get()
-                logging.debug('Getting ' + str(path)
-                              + ' : ' + str(self.queue.qsize()) + ' items in queue')
-                # audio = 'recording-%i.wav' % fileIndex
-                # path = self.clientId + "\\" + audio
-                if os.path.isfile(path):
-                    print('we are reading ' + path)
+                path_task = self.queue_task.get()
+                logging.debug('Getting ' + str(path_task)
+                              + ' : ' + str(self.queue_task.qsize()) + ' items in queue_task')
+                if os.path.isfile(path_task):
+                    print('we are reading ' + path_task)
                     try:
-                        with sr.AudioFile(path) as source:
+                        with sr.AudioFile(path_task) as source:
                             audio = r.record(source)
                     except IOError as e:
                         print("handling error")
@@ -84,6 +84,10 @@ class Recognizer(object):
                         print(e)
                     else:
                         print("no more files to transcribe for %s ......... " % self.clientId)
+                        path_command = self.clientId + "\\Transcribe.txt"
+                        self.queue_command.put(path_command)
+                        logging.debug('Putting ' + str(path_command)
+                                      + ' : ' + str(self.queue_command.qsize()) + ' items in queue_command')
             else :
                 print("queue is empty we are waiting ! ")
-            return self.queue
+            return self.queue_task ,self.queue_command
