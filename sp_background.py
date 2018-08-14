@@ -7,14 +7,15 @@ import queue
 
 
 def createFile(clientId):
-    path = clientId + "\\Transcibe.txt"
+    # path = clientId + "\\Transcribe.txt"
+    path = os.path.join(clientId,"Transcribe.txt")
     if os.path.isfile(path):
         f = open(path, "wt")
         f.close()
 
 
 def writeToFile(text, clientId, mode):
-    path = clientId + "\\Transcibe.txt"
+    path = os.path.join(clientId,"Transcribe.txt")
     if not os.path.isfile(path):
         createFile(path)
     with open(path, mode) as f:
@@ -41,6 +42,7 @@ class Recognizer(object):
         self.lastIndex = lastIndex
         self.queue_task = queue_task
         self.queue_command = queue_command
+        createFile(clientId=self.clientId)
         thread = threading.Thread(target=self.run, args=())
         thread.daemon = True  # Daemonize thread
         thread.start()  # Start the execution
@@ -51,7 +53,6 @@ class Recognizer(object):
             time.sleep(self.interval)
             print('sp running in the background')
             fileIndex = self.lastIndex
-            # createFile(clientId=self.clientId)
             if not self.queue_task.empty():
                 r = self.speech_recognizer
                 path_task = self.queue_task.get()
@@ -84,7 +85,7 @@ class Recognizer(object):
                         print(e)
                     else:
                         print("no more files to transcribe for %s ......... " % self.clientId)
-                        path_command = self.clientId + "\\Transcribe.txt"
+                        path_command = self.clientId + "\\"+"Transcribe.txt"
                         self.queue_command.put(path_command)
                         logging.debug('Putting ' + str(path_command)
                                       + ' : ' + str(self.queue_command.qsize()) + ' items in queue_command')

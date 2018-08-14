@@ -109,7 +109,8 @@ class Server:
                     original_filename = dataFile.name
                     print(original_filename)
                     # path = os.getcwd() + "\\" + self.clientId + "\\" + title
-                    path = self.clientId + "\\" + title[:15]
+                    # path = self.clientId + "\\" + title
+                    path = os.path.join(self.clientId,title)
                     # path = "%s'\\'%s'\\'%s" % os.getcwd() % self.clientId % title
                     os.link(original_filename, path)
 

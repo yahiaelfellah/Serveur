@@ -10,7 +10,6 @@ from old import sp
 import sp_background
 import commands
 
-# HOST = "192.168.61.109"
 PORT = 8888
 BUFSIZE = 4096
 Threads = []
@@ -69,7 +68,7 @@ class Manager:
         """
         self.server_worker = [server3.Server(server, BUFSIZE, i, self.clientId, True, self.queue_task) for i in
                               range(self.NUMBER_THREAD)]
-        sp_worker = sp_background.Recognizer(1, self.clientId, self.speech, 0, 1, self.queue_task, self.queue_command)
+        self.sp_worker = sp_background.Recognizer(1, self.clientId, self.speech, 0, 1, self.queue_task, self.queue_command)
         command_worker = commands.CommandManager(self.queue_command)
         print("running %i thread for each " % self.NUMBER_THREAD)
         for t in self.server_worker:
@@ -81,12 +80,12 @@ class Manager:
             if not os.access(path, os.R_OK):
                 continue
             else:
-                self.queue_task, self.queue_command = sp_worker.run()
+                self.queue_task, self.queue_command = self.sp_worker.run()
             try:
                 command_worker.run_match()
             except Exception as e:
                 print(e)
-                sys.exit()
+                pass
 
     def get_thread_tab(self):
         return self.THREADS

@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import re
 import queue
@@ -8,17 +9,24 @@ CONST_DELETE_COMMAND = ""
 CONST_INSERT_COMMAND = ""
 
 
+def command_filter(line, pos_start,pos_stop=None):
+    if pos_stop is None:
+        return line[:pos_start]
+    else :
+        return line[:pos_start].append(line[x] for x in range(pos_stop,len(line)-1))
+
+
 def read_last_line(path):
     with open(path, "r") as f:
         lineList = f.readlines()
         if len(lineList) > 0:
             return lineList[len(lineList) - 1]
         else:
-            return -1
+            return ""
 
 
 def line_to_list(line):
-    return [line.split(' ')]
+    return line.split(' ')
 
 
 def save_line(line, path):
@@ -28,15 +36,15 @@ def save_line(line, path):
     :param path:
     :return: return zero to indicate that all is clear
     """
+    text = ""
     for x in line:
-        if line.index(x) < (len(line) - 1):
-            text = text + x + " "
-        else:
-            text = text + x
-    with open(path, "a")as f:
-        lineList = f.readlines()
-        lineList[len(lineList) - 1] = text
-        return 0
+        text = text + x + " "
+    list = open(path).read().splitlines()
+    list[len(list) - 1] = text
+    with open(path, "w") as f:
+        for x in list:
+            f.write(x + "\n")
+    return 0
 
 
 def read_all(path):
@@ -100,6 +108,8 @@ def insert(word_to_add, item, list_word, path):
     if type(item) == str:
         list_word.append(word_to_add)
         print(list_word)
+    print("saving new line")
+    save_line(list_word, path)
 
 
 def pattern_finder(line):
@@ -112,24 +122,34 @@ def pattern_finder(line):
     # Let's assume there's a simple word  to  specify
     if matchObj_insert:
         insert_request = True
+        print("insert_request = True")
+
     if matchObj_delete:
         delete_request = True
+        print("delete_request = True")
     if matchObj_replace:
         replace_request = True
+        print("replace_request = True")
+    else:
+        print("We have no match")
     return insert_request, delete_request, replace_request, (matchObj_insert or
                                                              matchObj_delete or
-                                                             matchObj_replace)
+                                                             matchObj_replace),
 
 
 class CommandManager:
 
-    def __init__(self, queue_command):
+    def __init__(self, queue_command=None, path=None):
         self.line = ""
         self.list = line_to_list(self.line)
-        self.queue_command = queue_command
-        thread = threading.Thread(target=self.run_match, args=())
-        thread.daemon = True
-        thread.start()
+        if not queue_command is None:
+            self.queue_command = queue_command
+        else:
+            self.queue_command = queue.Queue()
+            self.queue_command.put(path)
+        # thread = threading.Thread(target=self.run_match, args=())
+        # thread.daemon = True
+        # thread.start()
         print('commandManger is running .... ')
 
     def run_match(self):
@@ -138,11 +158,16 @@ class CommandManager:
         # TODO : implement the replace checker : DONE = 7/18 ; 11:03 AM
         # TODO : implement it as a service : infinite loop
         while True:
-            if not self.queue_command.empty():
-                path = self.queue_command.get()
+            # if not self.queue_command.empty():
+            if True:
+                # path = self.queue_command.get()
+                path = os.path.join('', "Transcribe.txt")
+                if os.path.isfile(path):
+                    print("File exist .......................................")
                 logging.debug('Getting ' + str(path)
                               + ' : ' + str(self.queue_command.qsize()) + ' items in self.queue_command')
                 self.line = read_last_line(path)
+                self.list = line_to_list(self.line)
                 insert_request, delete_request, replace_request, matchObj = pattern_finder(self.line)
                 try:
                     if matchObj:
@@ -151,7 +176,11 @@ class CommandManager:
                             string = matchObj.group(4)
                             print("inserting before  : " + string)
                             # TODO  : We have to call replace function : DONE !
+                            # TODO : filter the command from the text and eliminate it
+
                             if replace_request:
+                                pos_start = self.list.inde("replace")
+                                self.list = command_filter(self.list, pos_start)
                                 replaceWord(self.list.index(string), -1, matchObj.group(5).split(' ')[1], self.list,
                                             path)
                                 return self.queue_command
@@ -159,6 +188,8 @@ class CommandManager:
                             if delete_request:
                                 delete(self.list.index(string), -1, self.list, path)
                             if insert_request:
+                                pos_start = self.list.index("insert")
+                                self.list = command_filter(self.list, pos_start)
                                 insert(matchObj.group(2), (self.list.index(string)), self.list, path)
                                 return self.queue_command
                         if "after" in matchObj.group(3).lower():
@@ -167,6 +198,8 @@ class CommandManager:
 
                             # TODO  : We have to call replace function : DONE !
                             if replace_request:
+                                pos_start = self.list.inde("replace")
+                                self.list = command_filter(self.list, pos_start)
                                 replaceWord(self.list.index(string), -2, matchObj.group(5).split(' ')[1], path)
                                 return self.queue_command
                             if delete_request:
@@ -183,6 +216,9 @@ class CommandManager:
                             if match_between:
                                 word1 = match_between.group(1).lower()
                                 word2 = match_between.group(2).lower()
+                                pos_start = self.list.index("insert")
+                                pos_stop = self.list.index(word2)
+                                self.list = command_filter(self.list, pos_start,pos_stop)
                                 insert(matchObj.group(2), (self.list.index(word1) + 1), self.list, path)
                                 return self.queue_command
 
@@ -221,8 +257,17 @@ class CommandManager:
                             return {matchObj.group(2), -1}
                     else:
                         print("no Match !! ")
+
                 except Exception as e:
+                    print(e)
                     print("there's an error ")
             else:
                 print("queue is empty we are waiting ...")
             return self.queue_command
+
+
+if __name__ == '__main__':
+    path = os.path.join('source', "Transcribe.txt")
+    print(path)
+    command = CommandManager(None, path)
+    command.run_match()
