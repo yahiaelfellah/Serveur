@@ -8,24 +8,25 @@ import sp_background
 import commands
 
 count = 0
+server, recognizer = main.Initialize()
+task_queue = queue.Queue()
+command_queue = queue.Queue()
+client = main.Manager("source", recognizer, task_queue, command_queue)
+
+
+def slot_method():
+    while True:
+        client.run()
 
 
 class Dialog(QDialog):
-
-    def slot_method(self):
-        server, recognizer = main.Initialize()
-        task_queue = queue.Queue()
-        command_queue = queue.Queue()
-        client = main.Manager("source", recognizer, task_queue, command_queue)
-        while True:
-            client.run()
 
     def __init__(self):
         super(Dialog, self).__init__()
 
         button = QPushButton("Click")
         if count == 0:
-            button.clicked.connect(self.slot_method)
+            button.clicked.connect(slot_method)
         self.setGeometry(100, 100, 500, 20)
         mainLayout = QVBoxLayout()
         mainLayout.addWidget(button)
@@ -36,4 +37,7 @@ class Dialog(QDialog):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     dialog = Dialog()
-    sys.exit(dialog.exec_())
+    try :
+        dialog.exec_()
+    except Exception as e :
+        print(e)
